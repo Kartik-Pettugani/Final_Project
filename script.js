@@ -1,6 +1,6 @@
 class StockPortfolio {
   constructor() {
-    this.polygonApiKey = 'mXo1jhN7i4POCiteYUj1zTtHUn_pwWmw'; 
+    this.polygonApiKey = 'mXo1jhN7i4POCiteYUj1zTtHUn_pwWmw'; // Polygon API key
     this.finnhubApiKey = 'cuk6o19r01qgs4829bn0cuk6o19r01qgs4829bng';
     this.stocks = JSON.parse(localStorage.getItem('stocks') || '[]');
     this.chart = null;
@@ -52,7 +52,7 @@ class StockPortfolio {
   }
 
   setupAutoRefresh() {
-    setInterval(() => this.refreshStockPrices(), 60000);
+    setInterval(() => this.refreshStockPrices(), 60000); // Refresh every minute
   }
 
   saveStocks() {
@@ -469,7 +469,10 @@ class StockPortfolio {
       const response = await fetch(`https://api.polygon.io/v3/reference/tickers?search=${query}&active=true&limit=5&apiKey=${this.polygonApiKey}`);
       const data = await response.json();
       this.showSuggestions(data.results || []);
+
+      // Add blur event listener to handle clicking outside
       searchInput.addEventListener('blur', () => {
+        // Small delay to allow click on suggestion to register
         setTimeout(() => this.clearSuggestions(), 200);
       });
     } catch (error) {
@@ -511,6 +514,8 @@ class StockPortfolio {
     this.addStock();
   }
 }
+
+// Initialize portfolio
 let portfolio;
 document.addEventListener('DOMContentLoaded', () => {
   portfolio = new StockPortfolio();

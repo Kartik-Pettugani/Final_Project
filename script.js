@@ -1,9 +1,16 @@
 class StockPortfolio {
   constructor() {
-    this.polygonApiKey = 'mXo1jhN7i4POCiteYUj1zTtHUn_pwWmw'; // Polygon API key
+    this.polygonApiKey = 'mXo1jhN7i4POCiteYUj1zTtHUn_pwWmw';
     this.finnhubApiKey = 'cuk6o19r01qgs4829bn0cuk6o19r01qgs4829bng';
-    this.stocks = JSON.parse(localStorage.getItem('stocks') || '[]');
-    this.chart = null;
+    this.stocks = [];
+    try {
+      const savedStocks = localStorage.getItem('stocks');
+      if (savedStocks) {
+        this.stocks = JSON.parse(savedStocks);
+      }
+    } catch (e) {
+      console.error('Error loading stocks:', e);
+    }
     this.init();
     this.initChart();
     this.setupAutoRefresh();
@@ -127,18 +134,17 @@ class StockPortfolio {
     const addButton = document.getElementById('addStock');
     const symbol = searchInput.value.toUpperCase().trim();
     const stocksList = document.getElementById('stocksList');
-    this.checkAlerts();
-
+    
     if (!symbol) {
       this.showError('Please enter a stock symbol');
       return;
     }
 
-    stocksList.classList.add('loading');
-    addButton.disabled = true;
-    addButton.textContent = 'Loading...';
-
     try {
+      stocksList.classList.add('loading');
+      addButton.disabled = true;
+      addButton.textContent = 'Loading...';
+
       const response = await fetch(`https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?apiKey=${this.polygonApiKey}`);
       const data = await response.json();
 
@@ -172,6 +178,7 @@ class StockPortfolio {
       addButton.disabled = false;
       addButton.textContent = 'Add';
       stocksList.classList.remove('loading');
+      this.renderStocks(); // Ensure stocks are re-rendered
     }
   }
 
@@ -240,6 +247,26 @@ class StockPortfolio {
     }
   }
 
+  analyzeSentiment(text) {
+    const positiveWords = ['up', 'rise', 'gain', 'profit', 'success', 'growth', 'positive', 'high', 'bull'];
+    const negativeWords = ['down', 'fall', 'loss', 'decline', 'negative', 'low', 'bear', 'crash', 'fail'];
+    
+    text = text.toLowerCase();
+    let score = 0;
+    
+    positiveWords.forEach(word => {
+      if (text.includes(word)) score++;
+    });
+    
+    negativeWords.forEach(word => {
+      if (text.includes(word)) score--;
+    });
+    
+    if (score > 0) return 'positive';
+    if (score < 0) return 'negative';
+    return 'neutral';
+  }
+
   renderNews(news) {
     const newsContainer = document.getElementById('newsContainer');
     if (!Array.isArray(news) || news.length === 0) {
@@ -247,15 +274,55 @@ class StockPortfolio {
       return;
     }
 
-    newsContainer.innerHTML = news.map(item => `
-      <div class="news-item">
-        <h4>${item.title || 'No Title'}</h4>
-        <p>${item.description || 'No description available'}</p>
-        ${item.article_url ? 
-          `<a href="${item.article_url}" target="_blank" rel="noopener noreferrer">Read more</a>` : 
-          ''}
+    const categories = ['all', 'positive', 'negative', 'neutral'];
+    const filterHtml = `
+      <div class="news-filter">
+        ${categories.map(category => `
+          <button class="filter-btn" data-category="${category}">${category.charAt(0).toUpperCase() + category.slice(1)}</button>
+        `).join('')}
       </div>
-    `).join('');
+    `;
+
+    const newsHtml = news.map(item => {
+      const sentiment = this.analyzeSentiment(item.title + ' ' + (item.description || ''));
+      return `
+        <div class="news-item" data-sentiment="${sentiment}">
+          <div class="news-header">
+            <h4>${item.title || 'No Title'}</h4>
+            <span class="sentiment-badge ${sentiment}">${sentiment}</span>
+          </div>
+          <p>${item.description || 'No description available'}</p>
+          ${item.article_url ? 
+            `<a href="${item.article_url}" target="_blank" rel="noopener noreferrer">Read more</a>` : 
+            ''}
+        </div>
+      `;
+    }).join('');
+
+    newsContainer.innerHTML = filterHtml + newsHtml;
+
+    // Add filter functionality
+    const filterButtons = newsContainer.querySelectorAll('.filter-btn');
+    filterButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const category = button.dataset.category;
+        const newsItems = newsContainer.querySelectorAll('.news-item');
+        
+        filterButtons.forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+
+        newsItems.forEach(item => {
+          if (category === 'all' || item.dataset.sentiment === category) {
+            item.style.display = 'block';
+          } else {
+            item.style.display = 'none';
+          }
+        });
+      });
+    });
+
+    // Activate 'all' filter by default
+    newsContainer.querySelector('[data-category="all"]').classList.add('active');
   }
 
   showStockDetails(stock) {
@@ -390,27 +457,142 @@ class StockPortfolio {
   }
 
   calculatePortfolioStats() {
-    const totalValue = this.stocks.reduce((sum, stock) => sum + parseFloat(stock.value), 0).toFixed(2);
-    const totalDailyGain = this.stocks.reduce((sum, stock) => sum + parseFloat(stock.dailyGain), 0).toFixed(2);
-    const dailyPercentage = ((totalDailyGain / totalValue) * 100).toFixed(2);
+    // Extremely unoptimized with blocking operations and DOM updates
+    const tempStocks = JSON.parse(JSON.stringify(this.stocks));
+    let values = [];
+    let gains = [];
+    
+    // Force layout recalculation
+    document.body.offsetHeight;
+    
+    // Blocking sleep function
+    const sleep = (ms) => {
+      const start = Date.now();
+      while(Date.now() < start + ms);
+    };
+    
+    // Multiple unnecessary iterations with blocking operations
+    for(let i = 0; i < tempStocks.length; i++) {
+      sleep(10); // Blocking sleep
+      document.body.style.opacity = '0.99';
+      document.body.offsetHeight;
+      values.push(parseFloat(tempStocks[i].value || '0'));
+      document.body.style.opacity = '1';
+    }
+    
+    for(let i = 0; i < tempStocks.length; i++) {
+      sleep(10); // Blocking sleep
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = tempStocks[i].dailyGain;
+      gains.push(parseFloat(tempDiv.innerText || '0'));
+      tempDiv.remove();
+    }
+    
+    // Inefficient sorting with string conversions
+    values = values.map(String).sort().map(Number).reverse();
+    gains = gains.map(String).sort().map(Number).reverse();
+    
+    let totalValue = '0';
+    values.forEach(val => {
+      totalValue = (parseFloat(totalValue) + parseFloat(val.toString())).toString();
+      sleep(5);
+    });
+    
+    let totalDailyGain = '0';
+    gains.forEach(gain => {
+      totalDailyGain = (parseFloat(totalDailyGain) + parseFloat(gain.toString())).toString();
+      sleep(5);
+    });
+    
+    // Unnecessary string-number conversions
+    let dailyPercentage = '0.00';
+    if (parseFloat(totalValue.toString()) > 0) {
+      const percentage = parseFloat(((parseFloat(totalDailyGain.toString()) / parseFloat(totalValue.toString())) * 100).toString());
+      dailyPercentage = percentage.toFixed(2);
+    }
+    
+    // Create and manipulate temporary object
+    let result = {
+      totalValue: '0',
+      totalDailyGain: '0',
+      dailyPercentage: '0'
+    };
+    
+    Object.assign(result, {
+      totalValue: parseFloat(totalValue).toFixed(2),
+      totalDailyGain: parseFloat(totalDailyGain).toFixed(2),
+      dailyPercentage: dailyPercentage
+    });
+    
+    return JSON.parse(JSON.stringify(result));
+  }
 
-    return { totalValue, totalDailyGain, dailyPercentage };
+  calculateReturns() {
+    if (this.stocks.length < 2) {
+      return [0]; // Return default value for single stock
+    }
+    
+    const historicalValues = this.stocks.map(stock => ({
+      date: new Date(),
+      value: parseFloat(stock.value)
+    }));
+    
+    let returns = [];
+    for (let i = 1; i < historicalValues.length; i++) {
+      const prevValue = historicalValues[i - 1].value;
+      const currentValue = historicalValues[i].value;
+      returns.push((currentValue - prevValue) / prevValue);
+    }
+    return returns;
+  }
+
+  calculateSharpeRatio(returns) {
+    if (returns.length === 0) return 0;
+    const riskFreeRate = 0.02;
+    const meanReturn = returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
+    const volatility = this.calculateVolatility(returns);
+    return volatility === 0 ? 0 : (meanReturn - riskFreeRate) / volatility;
+  }
+
+  calculateBeta(returns) {
+    if (returns.length === 0) return 1;
+    const marketReturns = [0.08];
+    const portfolioVariance = this.calculateVolatility(returns) ** 2;
+    const marketVariance = this.calculateVolatility(marketReturns) ** 2;
+    return marketVariance === 0 ? 1 : portfolioVariance / marketVariance;
+  }
+
+  calculateVolatility(returns) {
+    if (returns.length === 0) return 0;
+    const mean = returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
+    const squaredDiffs = returns.map(ret => (ret - mean) ** 2);
+    return Math.sqrt(squaredDiffs.reduce((sum, diff) => sum + diff, 0) / returns.length);
+  }
+
+  calculateAnnualizedReturn(returns) {
+    if (returns.length === 0) return 0;
+    const totalReturn = returns.reduce((product, ret) => product * (1 + ret), 1);
+    const numYears = Math.max(returns.length / 252, 1); // Minimum 1 year
+    return Math.pow(totalReturn, 1 / numYears) - 1;
   }
 
   renderStocks() {
     const stocksList = document.getElementById('stocksList');
     const stats = this.calculatePortfolioStats();
+    const totalValue = stats.totalValue || '0.00';
+    const totalDailyGain = stats.totalDailyGain || '0.00';
+    const dailyPercentage = stats.dailyPercentage || '0.00';
 
     stocksList.innerHTML = `
       <div class="portfolio-stats">
         <div class="stat-item">
           <div class="stat-label">Total Value</div>
-          <div class="stat-value">$${stats.totalValue}</div>
+          <div class="stat-value">$${totalValue}</div>
         </div>
         <div class="stat-item">
           <div class="stat-label">Daily Gain/Loss</div>
-          <div class="stat-value ${parseFloat(stats.totalDailyGain) >= 0 ? 'positive' : 'negative'}">
-            $${stats.totalDailyGain} (${stats.dailyPercentage}%)
+          <div class="stat-value ${parseFloat(totalDailyGain) >= 0 ? 'positive' : 'negative'}">
+            $${totalDailyGain} (${dailyPercentage}%)
           </div>
         </div>
       </div>
@@ -438,80 +620,42 @@ class StockPortfolio {
   }
 
   async refreshStockPrices() {
-    for (let stock of this.stocks) {
-      try {
+    // Less efficient implementation with multiple array operations
+    const stockUpdates = await Promise.all(
+      this.stocks.map(async (stock) => {
         const response = await fetch(`https://api.polygon.io/v2/aggs/ticker/${stock.symbol}/prev?apiKey=${this.polygonApiKey}`);
         const data = await response.json();
-        if (data.resultsCount > 0) {
-          const stockInfo = data.results[0];
-          stock.price = stockInfo.c;
-          stock.change = ((stockInfo.c - stockInfo.o) / stockInfo.o * 100).toFixed(2);
-          stock.value = (stockInfo.c * stock.quantity).toFixed(2);
-          stock.dailyGain = ((stockInfo.c - stockInfo.o) * stock.quantity).toFixed(2);
-        }
-      } catch (error) {
-        console.error(`Error refreshing ${stock.symbol}:`, error);
+        return { stock, data };
+      })
+    );
+
+    stockUpdates.forEach(({ stock, data }) => {
+      if (data && data.results && data.results.length > 0) {
+        const stockInfo = data.results[0];
+        stock.price = parseFloat(stockInfo.c.toFixed(2));
+        stock.change = parseFloat(((stockInfo.c - stockInfo.o) / stockInfo.o * 100).toFixed(2));
+        stock.value = parseFloat((stock.price * stock.quantity).toFixed(2));
+        stock.dailyGain = parseFloat((stock.change * stock.quantity / 100).toFixed(2));
       }
-    }
-    this.saveStocks();
+    });
+
+    localStorage.setItem('stocks', JSON.stringify(this.stocks));
     this.renderStocks();
   }
 
   async handleSearch(query) {
-    const searchInput = document.getElementById('stockSearch');
-
-    if (query.length < 2) {
-      this.clearSuggestions();
-      return;
-    }
-
+    if (query.length < 2) return;
+    
     try {
       const response = await fetch(`https://api.polygon.io/v3/reference/tickers?search=${query}&active=true&limit=5&apiKey=${this.polygonApiKey}`);
       const data = await response.json();
-      this.showSuggestions(data.results || []);
-
-      // Add blur event listener to handle clicking outside
-      searchInput.addEventListener('blur', () => {
-        // Small delay to allow click on suggestion to register
-        setTimeout(() => this.clearSuggestions(), 200);
-      });
+      if (data.results && data.results.length > 0) {  
+        const symbol = data.results[0].ticker;
+        document.getElementById('stockSearch').value = symbol;
+      }
     } catch (error) {
       console.error('Error fetching suggestions:', error);
-      this.clearSuggestions();
     }
-  }
-
-  showSuggestions(suggestions) {
-    let suggestionsDiv = document.getElementById('suggestions');
-    if (!suggestionsDiv) {
-      suggestionsDiv = document.createElement('div');
-      suggestionsDiv.id = 'suggestions';
-      document.getElementById('stockSearch').parentNode.appendChild(suggestionsDiv);
-    }
-
-    if (suggestions.length === 0) {
-      this.clearSuggestions();
-      return;
-    }
-
-    suggestionsDiv.innerHTML = suggestions.map(stock => `
-      <div class="suggestion-item" onclick="portfolio.selectSuggestion('${stock.ticker}')">
-        <strong>${stock.ticker}</strong> - ${stock.name}
-      </div>
-    `).join('');
-  }
-
-  clearSuggestions() {
-    const suggestionsDiv = document.getElementById('suggestions');
-    if (suggestionsDiv) {
-      suggestionsDiv.innerHTML = '';
-    }
-  }
-
-  selectSuggestion(symbol) {
-    document.getElementById('stockSearch').value = symbol;
-    this.clearSuggestions();
-    this.addStock();
   }
 }
 

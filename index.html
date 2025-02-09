@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>Stock Portfolio Tracker</title>
+  <link href="style.css" rel="stylesheet" type="text/css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/finnhub/dist/finnhub.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Portfolio</h1>
+      <div class="search-bar">
+        <input type="text" id="stockSearch" placeholder="Search stocks...">
+        <input type="number" id="stockQuantity" placeholder="Qty" min="1" value="1">
+        <button id="addStock">Add</button>
+      </div>
+    </header>
+
+    <div class="main-content">
+      <div class="sidebar">
+        <div class="portfolio-list">
+          <div id="stocksList">
+            <!-- Stocks will be added here -->
+          </div>
+        </div>
+        <div class="top-stocks">
+          <h4>Top 10 Stocks</h4>
+          <div id="topStocksList"></div>
+        </div>
+      </div>
+      <div id="stockDetails" class="stock-details hidden">
+        <div class="details-header">
+          <h3>Stock Details</h3>
+          <button class="close-button">×</button>
+        </div>
+        <div class="details-content"></div>
+      </div>
+
+      <div class="chart-container">
+        <h3>Performance</h3>
+        <canvas id="portfolioChart"></canvas>
+        <div class="bottom-content">
+          <div class="left-section">
+            <div class="news-section">
+              <h3>Latest News</h3>
+              <div id="newsContainer"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>

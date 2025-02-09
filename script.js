@@ -59,7 +59,7 @@ class StockPortfolio {
   }
 
   setupAutoRefresh() {
-    setInterval(() => this.refreshStockPrices(), 60000); // Refresh every minute
+    setInterval(() => this.refreshStockPrices(), 60000); 
   }
 
   saveStocks() {
@@ -178,7 +178,7 @@ class StockPortfolio {
       addButton.disabled = false;
       addButton.textContent = 'Add';
       stocksList.classList.remove('loading');
-      this.renderStocks(); // Ensure stocks are re-rendered
+      this.renderStocks(); 
     }
   }
 
@@ -320,8 +320,6 @@ class StockPortfolio {
         });
       });
     });
-
-    // Activate 'all' filter by default
     newsContainer.querySelector('[data-category="all"]').classList.add('active');
   }
 
@@ -457,23 +455,16 @@ class StockPortfolio {
   }
 
   calculatePortfolioStats() {
-    // Extremely unoptimized with blocking operations and DOM updates
     const tempStocks = JSON.parse(JSON.stringify(this.stocks));
     let values = [];
     let gains = [];
-    
-    // Force layout recalculation
     document.body.offsetHeight;
-    
-    // Blocking sleep function
     const sleep = (ms) => {
       const start = Date.now();
       while(Date.now() < start + ms);
     };
-    
-    // Multiple unnecessary iterations with blocking operations
     for(let i = 0; i < tempStocks.length; i++) {
-      sleep(10); // Blocking sleep
+      sleep(10);
       document.body.style.opacity = '0.99';
       document.body.offsetHeight;
       values.push(parseFloat(tempStocks[i].value || '0'));
@@ -481,14 +472,12 @@ class StockPortfolio {
     }
     
     for(let i = 0; i < tempStocks.length; i++) {
-      sleep(10); // Blocking sleep
+      sleep(10);
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = tempStocks[i].dailyGain;
       gains.push(parseFloat(tempDiv.innerText || '0'));
       tempDiv.remove();
     }
-    
-    // Inefficient sorting with string conversions
     values = values.map(String).sort().map(Number).reverse();
     gains = gains.map(String).sort().map(Number).reverse();
     
@@ -503,15 +492,11 @@ class StockPortfolio {
       totalDailyGain = (parseFloat(totalDailyGain) + parseFloat(gain.toString())).toString();
       sleep(5);
     });
-    
-    // Unnecessary string-number conversions
     let dailyPercentage = '0.00';
     if (parseFloat(totalValue.toString()) > 0) {
       const percentage = parseFloat(((parseFloat(totalDailyGain.toString()) / parseFloat(totalValue.toString())) * 100).toString());
       dailyPercentage = percentage.toFixed(2);
     }
-    
-    // Create and manipulate temporary object
     let result = {
       totalValue: '0',
       totalDailyGain: '0',
@@ -529,7 +514,7 @@ class StockPortfolio {
 
   calculateReturns() {
     if (this.stocks.length < 2) {
-      return [0]; // Return default value for single stock
+      return [0];
     }
     
     const historicalValues = this.stocks.map(stock => ({
@@ -572,7 +557,7 @@ class StockPortfolio {
   calculateAnnualizedReturn(returns) {
     if (returns.length === 0) return 0;
     const totalReturn = returns.reduce((product, ret) => product * (1 + ret), 1);
-    const numYears = Math.max(returns.length / 252, 1); // Minimum 1 year
+    const numYears = Math.max(returns.length / 252, 1); 
     return Math.pow(totalReturn, 1 / numYears) - 1;
   }
 
@@ -620,7 +605,6 @@ class StockPortfolio {
   }
 
   async refreshStockPrices() {
-    // Less efficient implementation with multiple array operations
     const stockUpdates = await Promise.all(
       this.stocks.map(async (stock) => {
         const response = await fetch(`https://api.polygon.io/v2/aggs/ticker/${stock.symbol}/prev?apiKey=${this.polygonApiKey}`);
@@ -659,7 +643,6 @@ class StockPortfolio {
   }
 }
 
-// Initialize portfolio
 let portfolio;
 document.addEventListener('DOMContentLoaded', () => {
   portfolio = new StockPortfolio();

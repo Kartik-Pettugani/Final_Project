@@ -1,9 +1,16 @@
 class StockPortfolio {
   constructor() {
-    this.polygonApiKey = 'mXo1jhN7i4POCiteYUj1zTtHUn_pwWmw'; // Polygon API key
+    this.polygonApiKey = 'mXo1jhN7i4POCiteYUj1zTtHUn_pwWmw';
     this.finnhubApiKey = 'cuk6o19r01qgs4829bn0cuk6o19r01qgs4829bng';
-    this.stocks = JSON.parse(localStorage.getItem('stocks') || '[]');
-    this.chart = null;
+    this.stocks = [];
+    try {
+      const savedStocks = localStorage.getItem('stocks');
+      if (savedStocks) {
+        this.stocks = JSON.parse(savedStocks);
+      }
+    } catch (e) {
+      console.error('Error loading stocks:', e);
+    }
     this.init();
     this.initChart();
     this.setupAutoRefresh();
@@ -52,7 +59,7 @@ class StockPortfolio {
   }
 
   setupAutoRefresh() {
-    setInterval(() => this.refreshStockPrices(), 60000); // Refresh every minute
+    setInterval(() => this.refreshStockPrices(), 60000); 
   }
 
   saveStocks() {
@@ -127,18 +134,17 @@ class StockPortfolio {
     const addButton = document.getElementById('addStock');
     const symbol = searchInput.value.toUpperCase().trim();
     const stocksList = document.getElementById('stocksList');
-    this.checkAlerts();
-
+    
     if (!symbol) {
       this.showError('Please enter a stock symbol');
       return;
     }
 
-    stocksList.classList.add('loading');
-    addButton.disabled = true;
-    addButton.textContent = 'Loading...';
-
     try {
+      stocksList.classList.add('loading');
+      addButton.disabled = true;
+      addButton.textContent = 'Loading...';
+
       const response = await fetch(`https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?apiKey=${this.polygonApiKey}`);
       const data = await response.json();
 
@@ -172,15 +178,21 @@ class StockPortfolio {
       addButton.disabled = false;
       addButton.textContent = 'Add';
       stocksList.classList.remove('loading');
+      this.renderStocks(); 
     }
   }
 
   showError(message) {
+    const existingError = document.querySelector('.error-message');
+    if (existingError) existingError.remove();
+    
     const errorDiv = document.createElement('div');
     errorDiv.className = 'error-message';
     errorDiv.textContent = message;
     document.querySelector('.search-bar').appendChild(errorDiv);
-    setTimeout(() => errorDiv.remove(), 3000);
+    
+    errorDiv.addEventListener('click', () => errorDiv.remove());
+    setTimeout(() => errorDiv.remove(), 4000);
   }
 
   async fetchStockHistory(symbol) {
@@ -213,9 +225,26 @@ class StockPortfolio {
       const newsContainer = document.getElementById('newsContainer');
       newsContainer.innerHTML = '<p class="no-news">Loading news...</p>';
 
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const cachedNews = sessionStorage.getItem(`news_${symbol}`);
+      if (cachedNews) {
+        const { data, timestamp } = JSON.parse(cachedNews);
+        // Use cached data if less than 5 minutes old
+        if (Date.now() - timestamp < 300000) {
+          this.renderNews(data);
+          return;
+        }
+      }
+
       const response = await fetch(
         `https://api.polygon.io/v2/reference/news?ticker=${symbol}&limit=3&apiKey=${this.polygonApiKey}`
       );
+
+      if (response.status === 429) {
+        newsContainer.innerHTML = '<p class="no-news">API rate limit reached. Please wait a few minutes before trying again.</p>';
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -231,6 +260,10 @@ class StockPortfolio {
         newsContainer.innerHTML = '<p class="no-news">No news available for this stock</p>';
         return;
       }
+      sessionStorage.setItem(`news_${symbol}`, JSON.stringify({
+        data: data.results,
+        timestamp: Date.now()
+      }));
 
       this.renderNews(data.results);
     } catch (error) {
@@ -240,6 +273,26 @@ class StockPortfolio {
     }
   }
 
+  analyzeSentiment(text) {
+    const positiveWords = ['up', 'rise', 'gain', 'profit', 'success', 'growth', 'positive', 'high', 'bull'];
+    const negativeWords = ['down', 'fall', 'loss', 'decline', 'negative', 'low', 'bear', 'crash', 'fail'];
+    
+    text = text.toLowerCase();
+    let score = 0;
+    
+    positiveWords.forEach(word => {
+      if (text.includes(word)) score++;
+    });
+    
+    negativeWords.forEach(word => {
+      if (text.includes(word)) score--;
+    });
+    
+    if (score > 0) return 'positive';
+    if (score < 0) return 'negative';
+    return 'neutral';
+  }
+
   renderNews(news) {
     const newsContainer = document.getElementById('newsContainer');
     if (!Array.isArray(news) || news.length === 0) {
@@ -247,15 +300,51 @@ class StockPortfolio {
       return;
     }
 
-    newsContainer.innerHTML = news.map(item => `
-      <div class="news-item">
-        <h4>${item.title || 'No Title'}</h4>
-        <p>${item.description || 'No description available'}</p>
-        ${item.article_url ? 
-          `<a href="${item.article_url}" target="_blank" rel="noopener noreferrer">Read more</a>` : 
-          ''}
+    const categories = ['all', 'positive', 'negative', 'neutral'];
+    const filterHtml = `
+      <div class="news-filter">
+        ${categories.map(category => `
+          <button class="filter-btn" data-category="${category}">${category.charAt(0).toUpperCase() + category.slice(1)}</button>
+        `).join('')}
       </div>
-    `).join('');
+    `;
+
+    const newsHtml = news.map(item => {
+      const sentiment = this.analyzeSentiment(item.title + ' ' + (item.description || ''));
+      return `
+        <div class="news-item" data-sentiment="${sentiment}">
+          <div class="news-header">
+            <h4>${item.title || 'No Title'}</h4>
+            <span class="sentiment-badge ${sentiment}">${sentiment}</span>
+          </div>
+          <p>${item.description || 'No description available'}</p>
+          ${item.article_url ? 
+            `<a href="${item.article_url}" target="_blank" rel="noopener noreferrer">Read more</a>` : 
+            ''}
+        </div>
+      `;
+    }).join('');
+
+    newsContainer.innerHTML = filterHtml + newsHtml;
+    const filterButtons = newsContainer.querySelectorAll('.filter-btn');
+    filterButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const category = button.dataset.category;
+        const newsItems = newsContainer.querySelectorAll('.news-item');
+        
+        filterButtons.forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+
+        newsItems.forEach(item => {
+          if (category === 'all' || item.dataset.sentiment === category) {
+            item.style.display = 'block';
+          } else {
+            item.style.display = 'none';
+          }
+        });
+      });
+    });
+    newsContainer.querySelector('[data-category="all"]').classList.add('active');
   }
 
   showStockDetails(stock) {
@@ -390,27 +479,33 @@ class StockPortfolio {
   }
 
   calculatePortfolioStats() {
-    const totalValue = this.stocks.reduce((sum, stock) => sum + parseFloat(stock.value), 0).toFixed(2);
-    const totalDailyGain = this.stocks.reduce((sum, stock) => sum + parseFloat(stock.dailyGain), 0).toFixed(2);
-    const dailyPercentage = ((totalDailyGain / totalValue) * 100).toFixed(2);
+    const totalValue = this.stocks.reduce((sum, stock) => sum + parseFloat(stock.value || 0), 0);
+    const totalDailyGain = this.stocks.reduce((sum, stock) => sum + parseFloat(stock.dailyGain || 0), 0);
+    const dailyPercentage = totalValue > 0 ? (totalDailyGain / totalValue * 100).toFixed(2) : '0.00';
 
-    return { totalValue, totalDailyGain, dailyPercentage };
+    return {
+      totalValue: totalValue.toFixed(2),
+      totalDailyGain: totalDailyGain.toFixed(2),
+      dailyPercentage
+    };
   }
-
   renderStocks() {
     const stocksList = document.getElementById('stocksList');
     const stats = this.calculatePortfolioStats();
+    const totalValue = stats.totalValue || '0.00';
+    const totalDailyGain = stats.totalDailyGain || '0.00';
+    const dailyPercentage = stats.dailyPercentage || '0.00';
 
     stocksList.innerHTML = `
       <div class="portfolio-stats">
         <div class="stat-item">
           <div class="stat-label">Total Value</div>
-          <div class="stat-value">$${stats.totalValue}</div>
+          <div class="stat-value">$${totalValue}</div>
         </div>
         <div class="stat-item">
           <div class="stat-label">Daily Gain/Loss</div>
-          <div class="stat-value ${parseFloat(stats.totalDailyGain) >= 0 ? 'positive' : 'negative'}">
-            $${stats.totalDailyGain} (${stats.dailyPercentage}%)
+          <div class="stat-value ${parseFloat(totalDailyGain) >= 0 ? 'positive' : 'negative'}">
+            $${totalDailyGain} (${dailyPercentage}%)
           </div>
         </div>
       </div>
@@ -438,84 +533,91 @@ class StockPortfolio {
   }
 
   async refreshStockPrices() {
-    for (let stock of this.stocks) {
-      try {
-        const response = await fetch(`https://api.polygon.io/v2/aggs/ticker/${stock.symbol}/prev?apiKey=${this.polygonApiKey}`);
-        const data = await response.json();
-        if (data.resultsCount > 0) {
-          const stockInfo = data.results[0];
-          stock.price = stockInfo.c;
-          stock.change = ((stockInfo.c - stockInfo.o) / stockInfo.o * 100).toFixed(2);
-          stock.value = (stockInfo.c * stock.quantity).toFixed(2);
-          stock.dailyGain = ((stockInfo.c - stockInfo.o) * stock.quantity).toFixed(2);
-        }
-      } catch (error) {
-        console.error(`Error refreshing ${stock.symbol}:`, error);
+    try {
+      const symbols = this.stocks.map(stock => stock.symbol).join(',');
+      const response = await fetch(`https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/prev?symbols=${symbols}&apiKey=${this.polygonApiKey}`);
+      const data = await response.json();
+
+      if (data.results) {
+        const stocksMap = new Map(data.results.map(result => [result.T, result]));
+        
+        this.stocks = this.stocks.map(stock => {
+          const info = stocksMap.get(stock.symbol);
+          if (!info) return stock;
+
+          const price = parseFloat(info.c.toFixed(2));
+          const change = parseFloat(((info.c - info.o) / info.o * 100).toFixed(2));
+          
+          return {
+            ...stock,
+            price,
+            change,
+            value: parseFloat((price * stock.quantity).toFixed(2)),
+            dailyGain: parseFloat((change * stock.quantity / 100).toFixed(2))
+          };
+        });
+
+        localStorage.setItem('stocks', JSON.stringify(this.stocks));
+        this.renderStocks();
       }
+    } catch (error) {
+      console.error('Error refreshing stock prices:', error);
     }
-    this.saveStocks();
-    this.renderStocks();
   }
 
   async handleSearch(query) {
     const searchInput = document.getElementById('stockSearch');
-
+    let suggestionsContainer = document.querySelector('.search-suggestions');
+    
+    if (!suggestionsContainer) {
+      suggestionsContainer = document.createElement('div');
+      suggestionsContainer.className = 'search-suggestions';
+      searchInput.parentNode.appendChild(suggestionsContainer);
+    }
+    
     if (query.length < 2) {
-      this.clearSuggestions();
+      suggestionsContainer.style.display = 'none';
       return;
     }
-
+    
     try {
       const response = await fetch(`https://api.polygon.io/v3/reference/tickers?search=${query}&active=true&limit=5&apiKey=${this.polygonApiKey}`);
       const data = await response.json();
-      this.showSuggestions(data.results || []);
-
-      // Add blur event listener to handle clicking outside
-      searchInput.addEventListener('blur', () => {
-        // Small delay to allow click on suggestion to register
-        setTimeout(() => this.clearSuggestions(), 200);
-      });
+      
+      if (data.results && data.results.length > 0) {
+        suggestionsContainer.style.display = 'block';
+        suggestionsContainer.innerHTML = data.results.map(stock => `
+          <div class="suggestion-item" data-symbol="${stock.ticker}">
+            <div class="company-info">
+              <strong>${stock.ticker}</strong>
+              <span class="company-name">${stock.name}</span>
+            </div>
+            <span>${stock.market}</span>
+          </div>
+        `).join('');
+        
+        const items = suggestionsContainer.querySelectorAll('.suggestion-item');
+        items.forEach(item => {
+          item.addEventListener('click', () => {
+            searchInput.value = item.dataset.symbol;
+            suggestionsContainer.style.display = 'none';
+          });
+        });
+      } else {
+        suggestionsContainer.style.display = 'none';
+      }
     } catch (error) {
       console.error('Error fetching suggestions:', error);
-      this.clearSuggestions();
+      suggestionsContainer.style.display = 'none';
     }
-  }
-
-  showSuggestions(suggestions) {
-    let suggestionsDiv = document.getElementById('suggestions');
-    if (!suggestionsDiv) {
-      suggestionsDiv = document.createElement('div');
-      suggestionsDiv.id = 'suggestions';
-      document.getElementById('stockSearch').parentNode.appendChild(suggestionsDiv);
-    }
-
-    if (suggestions.length === 0) {
-      this.clearSuggestions();
-      return;
-    }
-
-    suggestionsDiv.innerHTML = suggestions.map(stock => `
-      <div class="suggestion-item" onclick="portfolio.selectSuggestion('${stock.ticker}')">
-        <strong>${stock.ticker}</strong> - ${stock.name}
-      </div>
-    `).join('');
-  }
-
-  clearSuggestions() {
-    const suggestionsDiv = document.getElementById('suggestions');
-    if (suggestionsDiv) {
-      suggestionsDiv.innerHTML = '';
-    }
-  }
-
-  selectSuggestion(symbol) {
-    document.getElementById('stockSearch').value = symbol;
-    this.clearSuggestions();
-    this.addStock();
+    document.addEventListener('click', (e) => {
+      if (!searchInput.contains(e.target) && !suggestionsContainer.contains(e.target)) {
+        suggestionsContainer.style.display = 'none';
+      }
+    });
   }
 }
 
-// Initialize portfolio
 let portfolio;
 document.addEventListener('DOMContentLoaded', () => {
   portfolio = new StockPortfolio();

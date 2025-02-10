@@ -7,6 +7,7 @@ The Stock Portfolio Tracker is a web-based application that allows users to mana
 <br>
 This tool is designed for both casual and serious investors who want a simple yet powerful way to monitor their investments.
 <br>
+<br>
 Key Features
 <br>
 ✅ Stock Search & Tracking – Add stocks to your portfolio using a search bar.
@@ -18,6 +19,7 @@ Key Features
 🚀 Top 10 Trending Stocks – Get insights into the most popular stocks.
 <br>
 🔔 Stock Alerts & Sentiment Analysis (Planned Feature) – Receive notifications on market trends and stock price movements.
+<br>
 <br>
 Tech Stack
 <br>
@@ -32,6 +34,7 @@ APIs Used:
 Finnhub API – Provides stock market data, news, and financial information.
 <br>
 Polygon.io API (Optional) – Additional stock data insights.
+<br>
 <br>
 Usage Guide
 <br>

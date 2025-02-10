@@ -43,11 +43,7 @@ header {
   position: relative;
 }
 
-#stockQuantity {
-  width: 80px;
-}
-
-#suggestions {
+.search-suggestions {
   position: absolute;
   top: 100%;
   left: 0;
@@ -59,11 +55,15 @@ header {
   max-height: 200px;
   overflow-y: auto;
   z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 
 .suggestion-item {
   padding: 0.75rem 1rem;
   cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 
@@ -74,6 +74,23 @@ header {
 .suggestion-item:hover {
   background: rgba(255,255,255,0.1);
 }
+
+.company-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.company-name {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+#stockQuantity {
+  width: 80px;
+}
+
+
 
 input {
   background: var(--surface);
@@ -135,22 +152,7 @@ button:hover {
   pointer-events: none;
 }
 
-.loading::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 30px;
-  height: 30px;
-  border: 3px solid var(--primary);
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
 .portfolio-list{
   height: calc(100vh - 250px);
   overflow-y: auto;
@@ -192,9 +194,10 @@ button:hover {
 
 .top-stocks {
   background: rgba(255, 255, 255, 0.05);
-  padding: 1rem;
+  padding: 1.5rem;
   border-radius: 8px;
   width: 350px;
+  margin-top: 1.5rem;
 }
 
 .top-stocks h4 {
@@ -312,6 +315,57 @@ h3 { font-size: 1rem; }
   padding-top: 0;
 }
 
+.news-filter {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.75rem;
+  border-radius: 8px;
+}
+
+.filter-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.filter-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.filter-btn.active {
+  background: var(--primary);
+  box-shadow: 0 2px 8px rgba(41, 98, 255, 0.3);
+}
+
+.sentiment-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  margin-left: 0.5rem;
+}
+
+.sentiment-badge.positive {
+  background: rgba(0, 255, 0, 0.1);
+}
+
+.sentiment-badge.negative {
+  background: rgba(255, 0, 0, 0.1);
+}
+
+.sentiment-badge.neutral {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.filter-btn.active {
+  background: var(--primary);
+}
+
 .news-item {
   background: rgba(255,255,255,0.05);
   padding: 1rem;
@@ -341,62 +395,6 @@ h3 { font-size: 1rem; }
   padding: 1rem;
 }
 
-.watchlist-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.small-button {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.8rem;
-}
-
-#watchlistTabs {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-}
-
-.watchlist-tab {
-  background: rgba(255,255,255,0.1);
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.watchlist-tab.active {
-  background: var(--primary);
-}
-
-.stock-details {
-  position: fixed;
-  right: 2rem;
-  top: 2rem;
-  bottom: 2rem;
-  width: 300px;
-  background: var(--surface);
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-  z-index: 1000;
-}
-
-.details-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.close-button {
-  background: none;
-  color: var(--text);
-  padding: 0.25rem;
-}
 
 .hidden {
   display: none;
@@ -404,15 +402,17 @@ h3 { font-size: 1rem; }
 
 .error-message {
   position: absolute;
-  bottom: -30px;
+  bottom: -40px;
   left: 0;
   right: 0;
   background: var(--error);
   color: white;
-  padding: 0.5rem;
-  border-radius: 4px;
+  padding: 0.75rem;
+  border-radius: 6px;
   font-size: 0.9rem;
   animation: slideIn 0.3s ease;
+  box-shadow: 0 2px 8px rgba(255, 23, 68, 0.3);
+  z-index: 100;
 }
 
 @keyframes slideIn {

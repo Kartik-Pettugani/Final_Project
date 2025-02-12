@@ -24,7 +24,11 @@ class StockPortfolio {
         try {
           const response = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${this.finnhubApiKey}`);
           const data = await response.json();
-          return { symbol, ...data };
+          return { 
+            symbol, 
+            c: data.c, 
+            dp: data.dp 
+          };
         } catch (err) {
           console.error(`Error fetching ${symbol}:`, err);
           return null;
@@ -224,13 +228,11 @@ class StockPortfolio {
     try {
       const newsContainer = document.getElementById('newsContainer');
       newsContainer.innerHTML = '<p class="no-news">Loading news...</p>';
-
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       const cachedNews = sessionStorage.getItem(`news_${symbol}`);
       if (cachedNews) {
         const { data, timestamp } = JSON.parse(cachedNews);
-        // Use cached data if less than 5 minutes old
         if (Date.now() - timestamp < 300000) {
           this.renderNews(data);
           return;
@@ -489,6 +491,9 @@ class StockPortfolio {
       dailyPercentage
     };
   }
+
+  
+
   renderStocks() {
     const stocksList = document.getElementById('stocksList');
     const stats = this.calculatePortfolioStats();

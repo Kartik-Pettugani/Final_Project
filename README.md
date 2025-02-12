@@ -31,9 +31,9 @@ Chart.js – Used for displaying stock performance trends
 <br>
 APIs Used:
 <br>
-Finnhub API – Provides stock market data, news, and financial information.
+Finnhub API – Provides top 10 stocks 
 <br>
-Polygon.io API (Optional) – Additional stock data insights.
+Polygon.io API  – Stock search functionality , Chart data , News fetching
 <br>
 <br>
 Usage Guide

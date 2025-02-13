@@ -1,16 +1,8 @@
 class StockPortfolio {
   constructor() {
-    this.polygonApiKey = 'mXo1jhN7i4POCiteYUj1zTtHUn_pwWmw';
+    this.polygonApiKey = 'S7xGqygu1BNoM471qVhTcgCTNyb9Jm1K';
     this.finnhubApiKey = 'cuk6o19r01qgs4829bn0cuk6o19r01qgs4829bng';
     this.stocks = [];
-    try {
-      const savedStocks = localStorage.getItem('stocks');
-      if (savedStocks) {
-        this.stocks = JSON.parse(savedStocks);
-      }
-    } catch (e) {
-      console.error('Error loading stocks:', e);
-    }
     this.init();
     this.initChart();
     this.setupAutoRefresh();
@@ -22,6 +14,7 @@ class StockPortfolio {
       const symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'BRK.B', 'TSLA', 'UNH', 'JPM'];
       const stockPromises = symbols.map(async symbol => {
         try {
+          await new Promise(resolve => setTimeout(resolve, 1200));
           const response = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${this.finnhubApiKey}`);
           const data = await response.json();
           return { 
@@ -128,7 +121,6 @@ class StockPortfolio {
       if (e.key === 'Enter') this.addStock();
     });
     searchInput.addEventListener('input', (e) => this.handleSearch(e.target.value));
-
     closeDetailsButton.addEventListener('click', () => this.hideStockDetails());
     this.renderStocks();
   }
@@ -136,11 +128,16 @@ class StockPortfolio {
   async addStock() {
     const searchInput = document.getElementById('stockSearch');
     const addButton = document.getElementById('addStock');
-    const symbol = searchInput.value.toUpperCase().trim();
     const stocksList = document.getElementById('stocksList');
-    
+    const symbol = searchInput.value.toUpperCase().trim();
+
     if (!symbol) {
       this.showError('Please enter a stock symbol');
+      return;
+    }
+
+    if (this.stocks.some(s => s.symbol === symbol)) {
+      this.showError('Stock already in portfolio');
       return;
     }
 
@@ -149,79 +146,105 @@ class StockPortfolio {
       addButton.disabled = true;
       addButton.textContent = 'Loading...';
 
+      // Increased delay to handle rate limiting
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
       const response = await fetch(`https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?apiKey=${this.polygonApiKey}`);
       const data = await response.json();
 
-      if (data.resultsCount > 0) {
-        const stockInfo = data.results[0];
-        const quantity = parseInt(document.getElementById('stockQuantity').value) || 1;
-        const stock = {
-          symbol,
-          price: stockInfo.c,
-          change: ((stockInfo.c - stockInfo.o) / stockInfo.o * 100).toFixed(2),
-          volume: stockInfo.v,
-          open: stockInfo.o,
-          high: stockInfo.h,
-          low: stockInfo.l,
-          quantity: quantity,
-          value: (stockInfo.c * quantity).toFixed(2),
-          dailyGain: ((stockInfo.c - stockInfo.o) * quantity).toFixed(2)
-        };
-
-        this.stocks.push(stock);
-        this.saveStocks();
-        this.renderStocks();
-        searchInput.value = '';
-      } else {
-        alert('Stock not found');
+      if (response.status === 429) {
+        throw new Error('API rate limit reached. Please wait 60 seconds and try again.');
       }
+
+      if (!response.ok || !data || data.status === 'ERROR') {
+        throw new Error(data.error || `Failed to fetch stock data (Status: ${response.status})`);
+      }
+
+      if (!data.resultsCount || data.resultsCount === 0) {
+        throw new Error('Stock not found. Please check the symbol and try again.');
+      }
+
+      const stockInfo = data.results[0];
+      const quantity = parseInt(document.getElementById('stockQuantity').value) || 1;
+      
+      const stock = {
+        symbol,
+        price: stockInfo.c,
+        change: ((stockInfo.c - stockInfo.o) / stockInfo.o * 100).toFixed(2),
+        volume: stockInfo.v,
+        open: stockInfo.o,
+        high: stockInfo.h,
+        low: stockInfo.l,
+        quantity: quantity,
+        value: (stockInfo.c * quantity).toFixed(2),
+        dailyGain: ((stockInfo.c - stockInfo.o) * quantity).toFixed(2)
+      };
+
+      this.stocks.push(stock);
+      this.renderStocks();
+      searchInput.value = '';
+      
     } catch (error) {
       console.error('Error fetching stock:', error);
-      this.showError('Failed to fetch stock data. Please try again.');
+      this.showError(error.message || 'Failed to fetch stock data. Please try again.');
     } finally {
       addButton.disabled = false;
       addButton.textContent = 'Add';
       stocksList.classList.remove('loading');
-      this.renderStocks(); 
     }
   }
 
   showError(message) {
     const existingError = document.querySelector('.error-message');
     if (existingError) existingError.remove();
-    
+
     const errorDiv = document.createElement('div');
     errorDiv.className = 'error-message';
     errorDiv.textContent = message;
     document.querySelector('.search-bar').appendChild(errorDiv);
-    
-    errorDiv.addEventListener('click', () => errorDiv.remove());
+
     setTimeout(() => errorDiv.remove(), 4000);
   }
 
   async fetchStockHistory(symbol) {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setMonth(startDate.getMonth() - 1);
+    try {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 1);
 
-    const response = await fetch(
-      `https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/day/${startDate.toISOString().split('T')[0]}/${endDate.toISOString().split('T')[0]}?apiKey=${this.polygonApiKey}`
-    );
-    const data = await response.json();
-    return data.results || [];
+      await new Promise(resolve => setTimeout(resolve, 1200));
+
+      const response = await fetch(
+        `https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/day/${startDate.toISOString().split('T')[0]}/${endDate.toISOString().split('T')[0]}?apiKey=${this.polygonApiKey}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.results || [];
+    } catch (error) {
+      console.error('Error fetching stock history:', error);
+      return [];
+    }
   }
 
   async updateChart(symbol) {
-    const historicalData = await this.fetchStockHistory(symbol);
-    const dates = historicalData.map(item => new Date(item.t).toLocaleDateString());
-    const prices = historicalData.map(item => item.c);
+    try {
+      const historicalData = await this.fetchStockHistory(symbol);
+      const dates = historicalData.map(item => new Date(item.t).toLocaleDateString());
+      const prices = historicalData.map(item => item.c);
 
-    this.chart.data.labels = dates;
-    this.chart.data.datasets[0].label = `${symbol} Price Trend`;
-    this.chart.data.datasets[0].data = prices;
-    this.chart.update();
+      this.chart.data.labels = dates;
+      this.chart.data.datasets[0].label = `${symbol} Price Trend`;
+      this.chart.data.datasets[0].data = prices;
+      this.chart.update();
 
-    this.fetchStockNews(symbol);
+      await this.fetchStockNews(symbol);
+    } catch (error) {
+      console.error('Error updating chart:', error);
+    }
   }
 
   async fetchStockNews(symbol) {
@@ -278,18 +301,18 @@ class StockPortfolio {
   analyzeSentiment(text) {
     const positiveWords = ['up', 'rise', 'gain', 'profit', 'success', 'growth', 'positive', 'high', 'bull'];
     const negativeWords = ['down', 'fall', 'loss', 'decline', 'negative', 'low', 'bear', 'crash', 'fail'];
-    
+
     text = text.toLowerCase();
     let score = 0;
-    
+
     positiveWords.forEach(word => {
       if (text.includes(word)) score++;
     });
-    
+
     negativeWords.forEach(word => {
       if (text.includes(word)) score--;
     });
-    
+
     if (score > 0) return 'positive';
     if (score < 0) return 'negative';
     return 'neutral';
@@ -333,7 +356,7 @@ class StockPortfolio {
       button.addEventListener('click', () => {
         const category = button.dataset.category;
         const newsItems = newsContainer.querySelectorAll('.news-item');
-        
+
         filterButtons.forEach(btn => btn.classList.remove('active'));
         button.classList.add('active');
 
@@ -492,79 +515,63 @@ class StockPortfolio {
     };
   }
 
-  
-
   renderStocks() {
     const stocksList = document.getElementById('stocksList');
     const stats = this.calculatePortfolioStats();
-    const totalValue = stats.totalValue || '0.00';
-    const totalDailyGain = stats.totalDailyGain || '0.00';
-    const dailyPercentage = stats.dailyPercentage || '0.00';
 
     stocksList.innerHTML = `
       <div class="portfolio-stats">
         <div class="stat-item">
           <div class="stat-label">Total Value</div>
-          <div class="stat-value">$${totalValue}</div>
+          <div class="stat-value">$${stats.totalValue}</div>
         </div>
         <div class="stat-item">
           <div class="stat-label">Daily Gain/Loss</div>
-          <div class="stat-value ${parseFloat(totalDailyGain) >= 0 ? 'positive' : 'negative'}">
-            $${totalDailyGain} (${dailyPercentage}%)
+          <div class="stat-value ${parseFloat(stats.totalDailyGain) >= 0 ? 'positive' : 'negative'}">
+            $${stats.totalDailyGain} (${stats.dailyPercentage}%)
           </div>
         </div>
       </div>
       ${this.stocks.map(stock => `
-      <div class="stock-item" onclick="portfolio.updateChart('${stock.symbol}')">
-        <div>
-          <strong>${stock.symbol}</strong>
-          <small>(${stock.quantity} shares)</small>
-        </div>
-        <div>
-          <div>$${stock.price} × ${stock.quantity} = $${stock.value}</div>
-          <div class="${stock.change >= 0 ? 'positive' : 'negative'}">
-            ${stock.change}% ($${stock.dailyGain})
+        <div class="stock-item" onclick="portfolio.updateChart('${stock.symbol}')">
+          <div>
+            <strong>${stock.symbol}</strong>
+            <small>(${stock.quantity} shares)</small>
           </div>
+          <div>
+            <div>$${stock.price} × ${stock.quantity} = $${stock.value}</div>
+            <div class="${stock.change >= 0 ? 'positive' : 'negative'}">
+              ${stock.change}% ($${stock.dailyGain})
+            </div>
+          </div>
+          <button class="delete-button" onclick="event.stopPropagation(); portfolio.deleteStock('${stock.symbol}')">Delete</button>
         </div>
-        <button class="delete-button" onclick="portfolio.deleteStock('${stock.symbol}')">Delete</button>
-      </div>
-    `).join('')}`;
+      `).join('')}`;
   }
 
   deleteStock(symbol) {
     this.stocks = this.stocks.filter(stock => stock.symbol !== symbol);
-    this.saveStocks();
     this.renderStocks();
   }
 
   async refreshStockPrices() {
     try {
-      const symbols = this.stocks.map(stock => stock.symbol).join(',');
-      const response = await fetch(`https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/prev?symbols=${symbols}&apiKey=${this.polygonApiKey}`);
-      const data = await response.json();
+      for (const stock of this.stocks) {
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        const response = await fetch(`https://api.polygon.io/v2/aggs/ticker/${stock.symbol}/prev?apiKey=${this.polygonApiKey}`);
 
-      if (data.results) {
-        const stocksMap = new Map(data.results.map(result => [result.T, result]));
-        
-        this.stocks = this.stocks.map(stock => {
-          const info = stocksMap.get(stock.symbol);
-          if (!info) return stock;
-
-          const price = parseFloat(info.c.toFixed(2));
-          const change = parseFloat(((info.c - info.o) / info.o * 100).toFixed(2));
-          
-          return {
-            ...stock,
-            price,
-            change,
-            value: parseFloat((price * stock.quantity).toFixed(2)),
-            dailyGain: parseFloat((change * stock.quantity / 100).toFixed(2))
-          };
-        });
-
-        localStorage.setItem('stocks', JSON.stringify(this.stocks));
-        this.renderStocks();
+        if (response.ok) {
+          const data = await response.json();
+          if (data.results && data.results[0]) {
+            const result = data.results[0];
+            stock.price = parseFloat(result.c.toFixed(2));
+            stock.change = parseFloat(((result.c - result.o) / result.o * 100).toFixed(2));
+            stock.value = parseFloat((result.c * stock.quantity).toFixed(2));
+            stock.dailyGain = parseFloat(((result.c - result.o) * stock.quantity).toFixed(2));
+          }
+        }
       }
+      this.renderStocks();
     } catch (error) {
       console.error('Error refreshing stock prices:', error);
     }
@@ -573,22 +580,28 @@ class StockPortfolio {
   async handleSearch(query) {
     const searchInput = document.getElementById('stockSearch');
     let suggestionsContainer = document.querySelector('.search-suggestions');
-    
+
     if (!suggestionsContainer) {
       suggestionsContainer = document.createElement('div');
       suggestionsContainer.className = 'search-suggestions';
       searchInput.parentNode.appendChild(suggestionsContainer);
     }
-    
+
     if (query.length < 2) {
       suggestionsContainer.style.display = 'none';
       return;
     }
-    
+
     try {
+      await new Promise(resolve => setTimeout(resolve, 1200));
       const response = await fetch(`https://api.polygon.io/v3/reference/tickers?search=${query}&active=true&limit=5&apiKey=${this.polygonApiKey}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
-      
+
       if (data.results && data.results.length > 0) {
         suggestionsContainer.style.display = 'block';
         suggestionsContainer.innerHTML = data.results.map(stock => `
@@ -600,7 +613,7 @@ class StockPortfolio {
             <span>${stock.market}</span>
           </div>
         `).join('');
-        
+
         const items = suggestionsContainer.querySelectorAll('.suggestion-item');
         items.forEach(item => {
           item.addEventListener('click', () => {
@@ -615,6 +628,7 @@ class StockPortfolio {
       console.error('Error fetching suggestions:', error);
       suggestionsContainer.style.display = 'none';
     }
+
     document.addEventListener('click', (e) => {
       if (!searchInput.contains(e.target) && !suggestionsContainer.contains(e.target)) {
         suggestionsContainer.style.display = 'none';
